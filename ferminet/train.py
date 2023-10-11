@@ -42,6 +42,7 @@ import ml_collections
 import numpy as np
 import optax
 from typing_extensions import Protocol
+import time
 
 
 def _assign_spin_configuration(
@@ -508,7 +509,7 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
     mcmc_width_ckpt = None
 
   # Set up logging
-  train_schema = ['step', 'energy', 'ewmean', 'ewvar', 'pmove']
+  train_schema = ['step', 'energy', 'ewmean', 'ewvar', 'pmove', 'delta_time']
 
   # Initialisation done. We now want to have different PRNG streams on each
   # device. Shard the key over devices
@@ -709,6 +710,7 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
         log=False)
   with writer_manager as writer:
     # Main training loop
+    start_time = time.time()
     for t in range(t_init, cfg.optim.iterations):
       sharded_key, subkeys = kfac_jax.utils.p_split(sharded_key)
       data, params, opt_state, loss, unused_aux_data, pmove = step(
@@ -717,7 +719,8 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
           opt_state,
           subkeys,
           mcmc_width)
-
+      delta_time = time.time() - start_time
+      start_time = time.time()
       # due to pmean, loss, and pmove should be the same across
       # devices.
       loss = loss[0]
@@ -745,15 +748,16 @@ def train(cfg: ml_collections.ConfigDict, writer_manager=None):
       # Logging
       if t % cfg.log.stats_frequency == 0:
         logging.info(
-            'Step %05d: %03.4f E_h, exp. variance=%03.4f E_h^2, pmove=%0.2f', t,
-            loss, weighted_stats.variance, pmove)
+            'Step %05d: %03.4f E_h, exp. variance=%03.4f E_h^2, pmove=%0.2f, delta_time = %0.4f', t,
+            loss, weighted_stats.variance, pmove, delta_time)
         writer.write(
             t,
             step=t,
             energy=np.asarray(loss),
             ewmean=np.asarray(weighted_stats.mean),
             ewvar=np.asarray(weighted_stats.variance),
-            pmove=np.asarray(pmove))
+            pmove=np.asarray(pmove),
+            delta_time=np.asarray(delta_time))
 
       # Checkpointing
       if time.time() - time_of_last_ckpt > cfg.log.save_frequency * 60:
