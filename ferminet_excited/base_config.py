@@ -54,7 +54,7 @@ def default() -> ml_collections.ConfigDict:
       'config_module': __name__,
       'optim': {
           'objective': 'vmc',  # objective type. Either 'vmc' or 'wqmc'
-          'iterations': 5000,  # number of iterations
+          'n_epochs': 10000,  # number of n_epochs
           'optimizer': 'kfac',  # one of adam, kfac, lamb, none
           'lr': {
               'rate': 0.1,  # learning rate
@@ -96,7 +96,7 @@ def default() -> ml_collections.ConfigDict:
           },
       },
       'log': {
-          'stats_frequency': 10,  # iterations between logging of stats
+          'stats_frequency': 10,  # n_epochs between logging of stats
           'save_frequency': 1000,  # minutes between saving network params
           # Path to save/restore network to/from. If falsy,
           # creates a timestamped directory in the working directory.
@@ -147,6 +147,7 @@ def default() -> ml_collections.ConfigDict:
           'make_local_energy_fn': '',
           # Additional kwargs to pass into make_local_energy_fn.
           'make_local_energy_kwargs': {},
+          'ecp_quadrature_id': 'icosahedron_12'
       },
       'mcmc': {
           # Note: HMC options are not currently used.
@@ -260,7 +261,7 @@ def default() -> ml_collections.ConfigDict:
       },
       'pretrain': {
           'method': 'hf',  # Currently only 'hf' is supported.
-          'iterations': 1000,  # Only used if method is 'hf'.
+          'n_epochs': 1000,  # Only used if method is 'hf'.
           'basis': 'sto-6g',
       },
   })

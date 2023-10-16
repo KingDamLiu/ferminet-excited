@@ -49,6 +49,7 @@ from ferminet_excited.loss import init_clipping_state
 from ferminet_excited import mcmc
 from ferminet_excited import base_config
 from ferminet_excited.wavefunction import create_network
+from ferminet_excited.configuration import Configuration
 
 # 输出数据
 train_schema = ['step', 'E_mean', 'E_mean_clip', 'E_var', 'E_var_clip', 'pmove', 'S','V', 'T', 'V_loc', 'V_nloc', 'delta_time']
@@ -59,9 +60,11 @@ logging.get_absl_handler().python_handler.stream = sys.stdout
 logging.set_verbosity(logging.INFO)
 
 # 定义体系
-cfg = base_config.default()
-cfg.system.electrons = (2,2)  # (alpha electrons, beta electrons)
-cfg.system.molecule = [system.Atom('Be', (0, 0, 0))]
+config_file = 'sample_config/config_minimal.yml'
+raw_config, cfg = Configuration.load_configuration_file(config_file)
+
+cfg.system.electrons = (5,2)  # (alpha electrons, beta electrons)
+cfg.system.molecule = [system.Atom('N', (0, 0, 0))]
 
 # symbol, spin = 'Ga', 1
 # mol = gto.Mole()
@@ -73,7 +76,7 @@ cfg.system.molecule = [system.Atom('Be', (0, 0, 0))]
 #     spin=int(spin))
 
 # cfg.system.pyscf_mol = mol
-cfg.system.ecp_quadrature_id = 'icosahedron_12'
+# cfg.system.ecp_quadrature_id = 'icosahedron_12'
 
 # Check if mol is a pyscf molecule and convert to internal representation
 if cfg.system.pyscf_mol:
@@ -85,7 +88,7 @@ if cfg.system.pyscf_mol:
 
 # Set training parameters
 cfg.batch_size = 4096
-cfg.pretrain.iterations = 0
+cfg.pretrain.n_epochs = 0
 
 
 writer_manager = None
@@ -121,7 +124,7 @@ key = jax.random.PRNGKey(seed)
 
 # Create parameters, network, and vmaped/pmaped derivations
 
-if cfg.pretrain.method == 'hf' and cfg.pretrain.iterations > 0:
+if cfg.pretrain.method == 'hf' and cfg.pretrain.n_epochs > 0:
   hartree_fock = pretrain.get_hf(
       pyscf_mol=cfg.system.get('pyscf_mol'),
       molecule=cfg.system.molecule,
@@ -135,19 +138,23 @@ if cfg.pretrain.method == 'hf' and cfg.pretrain.iterations > 0:
 
 import os
 
-cfg.log.save_path = ""
+cfg.log.save_path = "experiment_data/N_5_2_ferminet_1/"
+init_param = "experiment_data/N_5_2_ferminet_0/ferminet_2023_10_16_10:44:29/qmcjax_ckpt_008000.npz"
+cfg.optim.n_epochs = 10000
 
 for j in range(16):
-  files = os.listdir('.')
+  ckpt_save_path = checkpoint.create_save_path(cfg.log.save_path)
+  cfg.save(os.path.join(ckpt_save_path, "full_config.yml"))
+  files = os.listdir(cfg.log.save_path)
   ckpt_restore_filenames = []
   for file in files:
     if 'ferminet_2023' in file:
-      ckpt = os.listdir(file)
+      ckpt = os.listdir(os.path.join(cfg.log.save_path,file))
       ckpt.sort()
       if len(ckpt)>2:
-        ckpt_restore_filenames.append(file+'/'+ckpt[-2])
+        ckpt_restore_filenames.append(os.path.join(cfg.log.save_path, file, ckpt[-2]))
   ckpt_restore_filenames.sort()
-  ckpt_save_path = checkpoint.create_save_path(cfg.log.save_path)
+  
   # 波函数接口
   signed_networks = []
   sign_networks = []
@@ -159,13 +166,12 @@ for j in range(16):
   clipping_states = []
   mcmc_steps = []
 
-  init_param = None #'Fe_ecp_ferminet/ferminet_2023_09_25_11:15:15/qmcjax_ckpt_005000.npz'
-  # init_param = "K_ecp_ferminet_no_pre/ferminet_2023_09_29_17:47:01/qmcjax_ckpt_010000.npz"
-  # if len(ckpt_restore_filenames)>0 and 0:
-  #   init_param = ckpt_restore_filenames[-1]
+  # init_param = None 
   for i in range(len(ckpt_restore_filenames)+1):
-    if i > 0:
+    if len(ckpt_restore_filenames) > 0 and i > 0:
       ckpt_restore_filename = ckpt_restore_filenames[i-1]
+    # elif len(ckpt_restore_filenames) > 0 and i == 0:
+    #   ckpt_restore_filename = ckpt_restore_filenames[0]
     else:
       ckpt_restore_filename = None
 
@@ -259,7 +265,7 @@ for j in range(16):
       charges=charges,
       nspins=nspins,
       use_scan=False,
-      complex_output=cfg.network.get('complex', False),
+      complex_output=cfg.network.complex,
       pyscf_mole=cfg.system.pyscf_mol,
       ecp_quadrature_id=cfg.system.ecp_quadrature_id,
       )
@@ -271,7 +277,7 @@ for j in range(16):
       sign_networks,
       local_energy,
       clipping_config,
-      complex_output=cfg.network.get('complex', False)
+      complex_output=cfg.network.complex
   )
   # Compute the learning rate
   def learning_rate_schedule(t_: jnp.ndarray) -> jnp.ndarray:
@@ -303,6 +309,8 @@ for j in range(16):
         value_func_has_aux=True,
         value_func_has_rng=True,
         value_func_has_state=True,
+        include_norms_in_stats = True,
+        # include_per_param_norms_in_stats = True,
         learning_rate_schedule=learning_rate_schedule,
         curvature_ema=cfg.optim.kfac.cov_ema_decay,
         inverse_update_period=cfg.optim.kfac.invert_every,
@@ -375,12 +383,13 @@ for j in range(16):
     logging.info('Setting initial iteration to 0.')
     t_init = 0
 
+  logging.info('num_param: %d', get_num_param().get_key(params[0]))
   print('Main training loop')
   train_stats_file_name = os.path.join(ckpt_save_path, 'train_stats.csv')
   start_time = time.time()
-  for t in range(t_init, cfg.optim.iterations):
+  for t in range(t_init, cfg.optim.n_epochs):
     sharded_key, subkeys = kfac_jax.utils.p_split(sharded_key)
-    datas, params, opt_state, clipping_states, loss, unused_aux_datas, pmoves_t = step(
+    datas, params, opt_state, clipping_states, loss, unused_aux_datas, pmoves_t, params_state = step(
         datas,
         params,
         opt_state,
@@ -417,7 +426,7 @@ for j in range(16):
             pmove, 
             unused_aux_data.T[0], 
             unused_aux_data.V[0], 
-            unused_aux_data.V_loc[0], 
+            unused_aux_data.V_loc[0],
             unused_aux_data.V_nloc[0],
             unused_aux_data.S[0].sum())
       out_data = dict(
@@ -432,7 +441,14 @@ for j in range(16):
           V_loc = np.asarray(unused_aux_data.V_loc[0]),
           V_nloc = np.asarray(unused_aux_data.V_nloc[0]),
           S = np.asarray(unused_aux_data.S[0].sum()),
-          delta_time=np.asarray(delta_time))
+          delta_time=np.asarray(delta_time),
+          grad_norm = params_state['grad_norm'][0],
+          learning_rate = params_state['learning_rate'][0],
+          momentum = params_state['momentum'][0],
+          param_norm = params_state['param_norm'][0],
+          precon_grad_norm = params_state['precon_grad_norm'][0],
+          update_norm = params_state['update_norm'][0],
+          num_param = get_num_param().get_key(params[0]))
       for si, s in zip(range(unused_aux_data.S[0].shape[0]), unused_aux_data.S[0]):
         out_data['S_'+str(si)] = np.asarray(s)
       if t>0 and os.path.exists(train_stats_file_name):

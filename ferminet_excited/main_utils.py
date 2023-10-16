@@ -14,6 +14,23 @@ from ferminet_excited import constants
 import functools
 import copy
 
+def get_from_devices(data):
+    return jax.tree_util.tree_map(lambda x: x[0], data)
+
+class get_num_param:
+    size = 0
+    def get_key(self, data):
+        if isinstance(data, dict):
+            for key in data.keys():
+                self.get_key(data[key])
+        if not isinstance(data, (dict, list, int)):
+            self.size += data.size
+        if isinstance(data, (tuple, list)):
+            self.size += len(data)
+            for i in range(len(data)):
+                self.get_key(data[i])
+        return self.size
+
 def _assign_spin_configuration(
     nalpha: int, nbeta: int, batch_size: int = 1
 ) -> jnp.ndarray:
@@ -375,6 +392,14 @@ def make_kfac_training_step(mcmc_steps, damping: float,
         damping=shared_damping,
         func_state=clipping_state,
     )
-    return datas_temp, new_params, state, clipping_state, stats['loss'], stats['aux'], pmoves_temp
+    params_state = dict(
+      grad_norm = stats['grad_norm'],
+      learning_rate = stats['learning_rate'],
+      momentum = stats['momentum'],
+      param_norm = stats['param_norm'],
+      precon_grad_norm = stats['precon_grad_norm'],
+      update_norm = stats['update_norm'],
+    )
+    return datas_temp, new_params, state, clipping_state, stats['loss'], stats['aux'], pmoves_temp, params_state
 
   return step

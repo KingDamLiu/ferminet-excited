@@ -21,7 +21,7 @@ def create_network(cfg, charges, nspins):
             natoms=charges.shape[0],
             nspins=cfg.system.electrons,
             ndim=cfg.system.ndim,
-            rescale_inputs=cfg.network.get('rescale_inputs', False),
+            rescale_inputs=cfg.network.rescale_inputs,
         )
 
     if cfg.network.make_envelope_fn:
@@ -41,12 +41,18 @@ def create_network(cfg, charges, nspins):
             determinants=cfg.network.determinants,
             envelope=envelope,
             feature_layer=feature_layer,
-            jastrow=cfg.network.get('jastrow', 'default'),
+            jastrow=cfg.network.jastrow,
             bias_orbitals=cfg.network.bias_orbitals,
             full_det=cfg.network.full_det,
-            rescale_inputs=cfg.network.get('rescale_inputs', False),
-            complex_output=cfg.network.get('complex', False),
-            **cfg.network.ferminet,
+            rescale_inputs=cfg.network.rescale_inputs,
+            complex_output=cfg.network.complex,
+            hidden_dims=cfg.network.ferminet.hidden_dims,
+            use_last_layer=cfg.network.ferminet.use_last_layer,
+            separate_spin_channels=cfg.network.ferminet.separate_spin_channels,
+            schnet_electron_electron_convolutions=cfg.network.ferminet.schnet_electron_electron_convolutions,
+            electron_nuclear_aux_dims=cfg.network.ferminet.electron_nuclear_aux_dims,
+            schnet_electron_nuclear_convolutions=cfg.network.ferminet.schnet_electron_nuclear_convolutions,
+            # **cfg.network.ferminet,
         )
     elif cfg.network.network_type == 'psiformer':
         network = psiformer.make_fermi_net(

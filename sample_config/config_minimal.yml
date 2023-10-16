@@ -1,0 +1,22 @@
+batch_size: 4096
+log:
+  save_path: experiment_data/N_5_2_ferminet_0/
+system:
+  Z: [7]
+  R: [[0,0,0]]
+  n_electrons: 7
+  n_up: 5
+  molecule: []
+  electrons:
+  - 5
+  - 2
+  ecp_quadrature_id: icosahedron_12
+optim:
+  n_epochs: 10000
+network:
+  # network_type: ferminet
+  bias_orbitals: false
+  complex: false
+  determinants: 16
+  full_det: false
+experiment_name: deeperwin_experiment

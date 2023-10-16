@@ -64,9 +64,11 @@ def create_save_path(save_path: Optional[str]) -> str:
   Returns:
     Path to save checkpoints to.
   """
+  if not os.path.exists(save_path):
+    os.makedirs(save_path)
   timestamp = datetime.datetime.now().strftime('%Y_%m_%d_%H:%M:%S')
-  default_save_path = os.path.join(os.getcwd(), f'ferminet_{timestamp}')
-  ckpt_save_path = save_path or default_save_path
+  default_save_path = os.path.join(save_path, f'ferminet_{timestamp}')
+  ckpt_save_path = default_save_path
   if ckpt_save_path and not os.path.isdir(ckpt_save_path):
     os.makedirs(ckpt_save_path)
   return ckpt_save_path
