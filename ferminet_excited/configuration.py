@@ -1350,6 +1350,7 @@ class OptimizationConfig(ConfigBaseclass):
     lr: OptimizerConfig_lr = OptimizerConfig_lr()
     objective: str = "vmc"
     optimizer: str = "kfac"
+    num_psi_updates: int = 1
 
 class RestartConfig(ConfigBaseclass):
     mode: Literal["restart"] = "restart"

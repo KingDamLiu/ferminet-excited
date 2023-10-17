@@ -191,7 +191,8 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
               sign_networks: networks.FermiNetLike,
               local_energy: hamiltonian.LocalEnergy,
               clipping_config,
-              complex_output: bool = False) -> LossFn:
+              complex_output: bool = False,
+              num_psi_update: int = 1) -> LossFn:
   """Creates the loss function, including custom gradients.
 
   Args:
@@ -253,11 +254,11 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
     """
     clipping_state = clipping_states[0]
     keys = jax.random.split(key, num=datas[0].positions.shape[0])
-    E_pots, E_kins, V_locs, V_nlocs = batch_local_energy(params[0:1], keys, datas[0:1])
+    E_pots, E_kins, V_locs, V_nlocs = batch_local_energy(params[0:num_psi_update], keys, datas[0:num_psi_update])
     clipping_states_temp = []
     aux_datas = []
 
-    for i, clipping_state, E_pot, E_kin, V_loc, V_nloc, data in zip(range(1), clipping_states[0:1], E_pots, E_kins, V_locs, V_nlocs, datas[0:1]):
+    for i, clipping_state, E_pot, E_kin, V_loc, V_nloc, data in zip(range(num_psi_update), clipping_states[0:num_psi_update], E_pots, E_kins, V_locs, V_nlocs, datas[0:num_psi_update]):
       E_loc = E_pot + E_kin + V_nloc
       # 将能量的过大值和过小值剪裁
       E_loc_clipped, clipping_state = _clip_energies(E_loc, clipping_state, clipping_config)
@@ -300,7 +301,7 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
     aux_datas[0].psi = jnp.array(psi_datas)
 
     # 计算波函数的重叠损失
-    for i in range(1):
+    for i in range(num_psi_update):
         S = []
         for j in range(i+1, len(params)):
             psi_ij = constants.pmean(clip_mean(psi_datas[i][j]/psi_datas[j][j]))
@@ -318,7 +319,7 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
     E_mean, (clipping_states, psi_datas, aux_datas) = total_energy(params, clipping_states, key, datas)
 
     tangents_outs = 0
-    for i in range(1):
+    for i in range(num_psi_update):
       diff = aux_datas[i].E_loc_clipped - aux_datas[i].E_mean_clipped
       data = primals[3][i]
       
