@@ -1337,7 +1337,7 @@ class kfacConfig(ConfigBaseclass):
 class OptimizerConfig_lr(ConfigBaseclass):
     decay: float = 1.0
     delay: float = 10000.0
-    rate: float = 0.1
+    rate: float = 0.05
 
 class OptimizationConfig(ConfigBaseclass):
 
@@ -1466,6 +1466,8 @@ class PhysicalConfig(ConfigBaseclass):
     make_local_energy_fn: str= ''
     # Additional kwargs to pass into make_local_energy_fn.
     make_local_energy_kwargs:dict = {}
+
+    ecp: Optional[str] = None
 
     ecp_quadrature_id = 'icosahedron_12'
 
@@ -1601,6 +1603,26 @@ class FerminetComfig(ConfigBaseclass):
     schnet_electron_nuclear_convolutions: List[List[int]] = []
     separate_spin_channels: bool = False
     use_last_layer: bool = False
+
+class Ferminetschnet_Comfig(ConfigBaseclass):
+    # Dimension of each layer of the electron-nuclear auxiliary stream.  Must be same length as hidden_dims-1 (use_last_layer=False) or hidden_dims (use_last_layer=True).  If falsy, not used.
+    electron_nuclear_aux_dims: List[int] = [32,32,32,32,32]
+    # Whether to use the last layer of the two-electron stream of the FermiNet.
+    hidden_dims: List[List[int]] = [[256, 32], [256, 32], [256, 32], [256, 32]]
+    # Dimensions of the embedding of the nuclear features used in SchNet-style convolutions.  If falsy, not used.
+    nuclear_embedding_dim: int = 16
+    # Dimension of each layer of the electron-nuclear auxiliary stream.  Must be same length as hidden_dims-1 (use_last_layer=False) or hidden_dims (use_last_layer=True).  If falsy, not used.
+    schnet_electron_electron_convolutions: List[List[int]] = [32,32,32,32,32]
+    # Dimensions of embeddings for SchNet-style convolution layers (e-n) proposed by Gerard et al.  Requires electron_nuclear_aux_dims and nuclear_embedding_dim to also be set. Length as for schnet_electron_electron_convolutions.
+    schnet_electron_nuclear_convolutions: List[List[int]] = [32,32,32,32,32]
+    # SchNet-style convolutions for permutation-equivariant blocks in
+    # FermiNet proposed by Gerard, Scherbela, Marquetand, Grohs,
+    # arXiv:2205.09438 (NeurIPS 2022).
+    # Dimensions of embeddings for SchNet-style convolution layers
+    # (e-e) SchNet-style convolution layers (e-e only) proposed by
+    # Gerard et al.  Note: unlike Gerard, we do not currently use separate weights for same-spin and opposite spin interactions unless separate_spin_channels is enabled.  Must be either empty(don't use), or a tuple of embedding dimensions of length N(use_last_layer=False) or N+1 (use_last_layer=True), where N is the number of layers specified in hidden_dims.
+    separate_spin_channels: bool = False
+    use_last_layer: bool = True
 
 class Psi4Config(ConfigBaseclass):
     head_dim: int = 64

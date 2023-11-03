@@ -21,7 +21,8 @@ from ferminet_excited import hamiltonian
 from ferminet import curvature_tags_and_blocks
 
 def get_from_devices(data):
-    return jax.tree_util.tree_map(lambda x: x[0], data)
+    return data
+    # return jax.tree_util.tree_map(lambda x: x[0], data)
 
 def init_clipping_state():
     return jnp.array([0.0, 1e5]).squeeze()
@@ -63,8 +64,7 @@ def init_mcmcs(cfg, evaluate_loss, params, mcmc_steps, datas, clipping_states, m
 def make_optimizer(cfg, evaluate_loss, params, sharded_key, datas, mcmc_steps, clipping_states, opt_state_ckpt=None):
   # Compute the learning rate
   def learning_rate_schedule(t_: jnp.ndarray) -> jnp.ndarray:
-    return cfg.optim.lr.rate * jnp.power(
-        (1.0 / (1.0 + (t_/cfg.optim.lr.delay))), cfg.optim.lr.decay)
+    return cfg.optim.lr.rate # * jnp.power((1.0 / (1.0 + (t_/cfg.optim.lr.delay))), cfg.optim.lr.decay)
     # Construct and setup optimizer
   if cfg.optim.optimizer == 'none':
     optimizer = None
@@ -253,15 +253,18 @@ def pyscf_to_molecule(cfg: ml_collections.ConfigDict):
     if not cfg.system.pyscf_mol:
         raise ValueError('You must set system.pyscf_mol in your cfg')
     cfg.system.pyscf_mol.build()
+    cfg.system.Z = cfg.system.pyscf_mol.nelectron
     cfg.system.electrons = cfg.system.pyscf_mol.nelec
     cfg.system.molecule = [system.Atom(cfg.system.pyscf_mol.atom_symbol(i),
                                        cfg.system.pyscf_mol.atom_coords()[i],
                                        charge=cfg.system.pyscf_mol.atom_charges()[i], )
                            for i in range(cfg.system.pyscf_mol.natm)]
-    ##  cfg.system.pyscf_mol.atom_charges()[i] return the screen charge of i atom if ecp is used
-
     cfg.pretrain.basis = str(cfg.system.pyscf_mol.basis)
     cfg.system.ecp = str(cfg.system.pyscf_mol.ecp)
+    cfg.system.Z = [atom.atomic_number for atom in cfg.system.molecule]    ##  cfg.system.pyscf_mol.atom_charges()[i] return the screen charge of i atom if ecp is used
+    cfg.system.n_electrons = sum(cfg.system.electrons)
+    cfg.system.n_up = cfg.system.electrons[0]
+    cfg.system.R = [atom.coords for atom in cfg.system.molecule]
     return cfg
 
 def init_electrons(
@@ -289,23 +292,26 @@ def init_electrons(
     of spin configurations, where 1 and -1 indicate alpha and beta electrons
     respectively.
   """
-  if sum(atom.charge for atom in molecule) != sum(electrons):
-    if len(molecule) == 1:
-      atomic_spin_configs = [electrons]
-    else:
-      raise NotImplementedError('No initialization policy yet '
-                                'exists for charged molecules.')
-  else:
-    atomic_spin_configs = [
-        (atom.element.nalpha - int((atom.atomic_number - atom.charge) // 2),
-          atom.element.nbeta - int((atom.atomic_number - atom.charge) // 2))
-        for atom in molecule
-    ]
-    assert sum(sum(x) for x in atomic_spin_configs) == sum(electrons)
-    while tuple(sum(x) for x in zip(*atomic_spin_configs)) != electrons:
-      i = np.random.randint(len(atomic_spin_configs))
-      nalpha, nbeta = atomic_spin_configs[i]
-      atomic_spin_configs[i] = nbeta, nalpha
+  # if sum(atom.charge for atom in molecule) != sum(electrons):
+  #   if len(molecule) == 1:
+  #     atomic_spin_configs = [electrons]
+  #   else:
+  #     raise NotImplementedError('No initialization policy yet '
+  #                               'exists for charged molecules.')
+  # else:
+  #   atomic_spin_configs = [
+  #       (atom.element.nalpha - int((atom.atomic_number - atom.charge) // 2),
+  #         atom.element.nbeta - int((atom.atomic_number - atom.charge) // 2))
+  #       for atom in molecule
+  #   ]
+  #   print(electrons, atomic_spin_configs)
+  #   assert sum(sum(x) for x in atomic_spin_configs) == sum(electrons)
+  #   while tuple(sum(x) for x in zip(*atomic_spin_configs)) != electrons:
+  #     i = np.random.randint(len(atomic_spin_configs))
+  #     nalpha, nbeta = atomic_spin_configs[i]
+  #     atomic_spin_configs[i] = nbeta, nalpha
+  #   print(atomic_spin_configs)
+  atomic_spin_configs = [electrons]
 
   # Assign each electron to an atom initially.
   electron_positions = []

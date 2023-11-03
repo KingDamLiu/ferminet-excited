@@ -63,25 +63,25 @@ logging.set_verbosity(logging.INFO)
 config_file = 'sample_config/config_minimal.yml'
 raw_config, cfg = Configuration.load_configuration_file(config_file)
 
-cfg.system.electrons = (5,2)  # (alpha electrons, beta electrons)
-cfg.system.molecule = [system.Atom('N', (0, 0, 0))]
+# cfg.system.electrons = (5,2)  # (alpha electrons, beta electrons)
+# cfg.system.molecule = [system.Atom('N', (0, 0, 0))]
 
-# symbol, spin = 'Ga', 1
-# mol = gto.Mole()
-# # # Set up molecule
-# mol.build(
-#     atom=f'{symbol} 0 0 0',
-#     basis={symbol: 'ccecpccpvdz'},
-#     ecp={symbol: 'ccecp'},
-#     spin=int(spin))
+symbol, spin = 'C', 2
+mol = gto.Mole()
+# # Set up molecule
+mol.build(
+    atom=f'{symbol} 0 0 0',
+    basis={symbol: 'ccecpccpvdz'},
+    ecp={symbol: 'ccecp'},
+    spin=int(spin))
 
-# cfg.system.pyscf_mol = mol
+cfg.system.pyscf_mol = mol
 # cfg.system.ecp_quadrature_id = 'icosahedron_12'
 
 # Check if mol is a pyscf molecule and convert to internal representation
 if cfg.system.pyscf_mol:
-  cfg.update(
-      system.pyscf_mol_to_internal_representation(cfg.system.pyscf_mol))
+  # cfg.update(
+  #     system.pyscf_mol_to_internal_representation(cfg.system.pyscf_mol))
   cfg = pyscf_to_molecule(cfg)
 
 # cfg.system.electrons=(9,6)
@@ -89,7 +89,6 @@ if cfg.system.pyscf_mol:
 # Set training parameters
 cfg.batch_size = 4096
 cfg.pretrain.n_epochs = 0
-
 
 writer_manager = None
 # 根据设备定义数据
@@ -124,24 +123,25 @@ key = jax.random.PRNGKey(seed)
 
 
 import os
-cfg.log.save_path = "experiment_data/N_5_2_ferminet_2/"
-init_param = "experiment_data/N_5_2_ferminet_0/ferminet_2023_10_16_10:44:29/qmcjax_ckpt_010000.npz"
+cfg.log.save_path = "experiment_data/C_4_2_ecp_ferminet_0/"
 cfg.optim.n_epochs = 10000
-cfg.optim.num_psi_updates = 4
+cfg.optim.num_psi_updates = 1
 
-init_params = []
-init_path = "experiment_data/N_5_2_ferminet_1/"
-files = os.listdir(init_path)
-for file in files:
-  if 'ferminet_2023' in file:
-    ckpt = os.listdir(os.path.join(init_path,file))
-    ckpt.sort()
-    if len(ckpt)>2:
-      init_params.append(os.path.join(init_path, file, ckpt[-2]))
-init_params.sort()
+# init_params = []
+# init_path = "experiment_data/N_5_2_ferminet_1/"
+# files = os.listdir(init_path)
+# for file in files:
+#   if 'ferminet_2023' in file:
+#     ckpt = os.listdir(os.path.join(init_path,file))
+#     ckpt.sort()
+#     if len(ckpt)>2:
+#       init_params.append(os.path.join(init_path, file, ckpt[-2]))
+# init_params.sort()
+
+init_params = [None]
 
 # Create parameters, network, and vmaped/pmaped derivations
-for j in range(1):
+for j in range(16):
   # 待求解波函数参数初始化文件
   ckpt_restore_filenames = []
   ckpt_save_paths = []
@@ -151,19 +151,20 @@ for j in range(1):
     ckpt_save_path = checkpoint.create_save_path(cfg.log.save_path)
     train_stats_file_name = os.path.join(ckpt_save_path, 'train_stats.csv')
     cfg.save(os.path.join(ckpt_save_path, "full_config.yml"))
-    ckpt_restore_filenames.append(init_params[cfg.optim.num_psi_updates-i])
+    ckpt_restore_filenames.append(init_params[cfg.optim.num_psi_updates-1-i])
     ckpt_save_paths.append(ckpt_save_path)
     train_stats_file_names.append(train_stats_file_name)
     time.sleep(1)
   # 已存在波函数参数文件
   files = os.listdir(cfg.log.save_path)
+  files.sort()
   for file in files:
     if 'ferminet_2023' in file:
       ckpt = os.listdir(os.path.join(cfg.log.save_path,file))
       ckpt.sort()
       if len(ckpt)>2:
         ckpt_restore_filenames.append(os.path.join(cfg.log.save_path, file, ckpt[-2]))
-  ckpt_restore_filenames.sort()
+  # ckpt_restore_filenames.sort()
   
   # 初始化波函数及其参数
   signed_networks = []

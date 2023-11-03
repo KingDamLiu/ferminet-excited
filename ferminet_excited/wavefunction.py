@@ -51,6 +51,7 @@ def create_network(cfg, charges, nspins):
             separate_spin_channels=cfg.network.ferminet.separate_spin_channels,
             schnet_electron_electron_convolutions=cfg.network.ferminet.schnet_electron_electron_convolutions,
             electron_nuclear_aux_dims=cfg.network.ferminet.electron_nuclear_aux_dims,
+            nuclear_embedding_dim = cfg.network.ferminet.nuclear_embedding_dim,
             schnet_electron_nuclear_convolutions=cfg.network.ferminet.schnet_electron_nuclear_convolutions,
             # **cfg.network.ferminet,
         )
@@ -62,11 +63,16 @@ def create_network(cfg, charges, nspins):
             determinants=cfg.network.determinants,
             envelope=envelope,
             feature_layer=feature_layer,
-            jastrow=cfg.network.get('jastrow', 'default'),
+            jastrow=cfg.network.jastrow,
             bias_orbitals=cfg.network.bias_orbitals,
-            rescale_inputs=cfg.network.get('rescale_inputs', False),
-            complex_output=cfg.network.get('complex', False),
-            **cfg.network.psiformer,
+            rescale_inputs=cfg.network.rescale_inputs,
+            complex_output=cfg.network.complex,
+            num_layers = cfg.network.psiformer.num_layers,
+            num_heads = cfg.network.psiformer.num_heads,
+            heads_dim = cfg.network.psiformer.head_dim,
+            mlp_hidden_dims = cfg.network.psiformer.mlp_hidden_dims,
+            use_layer_norm = cfg.network.psiformer.use_layer_norm,
+            # **cfg.network.psiformer,
         )
     
     return network
