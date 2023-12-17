@@ -47,8 +47,11 @@ class AuxiliaryLossData:
   V_nloc:jax.Array
   V_loc:jax.Array
   psi:jax.Array
+  orbital: jax.Array | None
+  logabs: jax.Array | None
   grad_local_energy: jax.Array | None
   S: jax.Array | None
+  f: jax.Array | None
 
 
 class LossFn(Protocol):
@@ -188,7 +191,7 @@ def clip_mean(x):
         return jnp.nanmean(x[(x>a[0])&(x<a[1])])
 
 def make_loss(logabs_networks: networks.LogFermiNetLike,
-              sign_networks: networks.FermiNetLike,
+              signed_networks: networks.FermiNetLike,
               local_energy: hamiltonian.LocalEnergy,
               clipping_config,
               complex_output: bool = False,
@@ -227,6 +230,12 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
       ),
       out_axes=0,
   )
+
+  wavefuncions = []
+  for signed_network in signed_networks:
+    wavefuncions.append(jax.vmap(
+        signed_network, in_axes=(None, 0, 0, 0, 0), out_axes=0
+    ))
 
   @jax.custom_jvp
   def total_energy(
@@ -282,8 +291,11 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
           V=V,
           V_nloc=V_nlocs,
           V_loc=V_locs,
-          psi=None,
+          psi = None,
+          orbital = None,
+          logabs = None,
           S = None,
+          f = None,
           grad_local_energy=None,
       )
       # clipping_states_temp.append(clipping_state)
@@ -291,24 +303,41 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
       aux_datas.append(aux_data)
     
     psi_datas = []
+    orbital_datas = []
+    logabses = []
     for i in range(len(params)):
           # 计算波函数各波函数
       psis = []
+      orbitals = []
+      logabs_t = []
       for j, data in zip(range(len(datas)), datas):
         primals_in = (params[i], data.positions, data.spins, data.atoms, data.charges)
-        psis.append(jnp.exp(logabs_networks[i](*primals_in))*sign_networks[i](*primals_in))
+        sign,logabs, orbital = wavefuncions[i](*primals_in)
+        psis.append(jnp.exp(logabs)*sign)
+        orbitals.append(orbital)
+        logabs_t.append(logabs)
       psi_datas.append(psis)
+      orbital_datas.append(orbitals)
+      logabses.append(logabs_t)
     aux_datas[0].psi = jnp.array(psi_datas)
+    aux_datas[0].orbital = orbital_datas
+    aux_datas[0].logabs = jnp.array(logabses)
 
     # 计算波函数的重叠损失
     for i in range(num_psi_update):
         S = []
+        f = []
         for j in range(i+1, len(params)):
             psi_ij = constants.pmean(clip_mean(psi_datas[i][j]/psi_datas[j][j]))
             psi_ji = constants.pmean(clip_mean(psi_datas[j][i]/psi_datas[i][i]))
             S.append(jnp.abs(psi_ij*psi_ji)**0.5)
+            # 计算振子强度
+            device_batch_size = jnp.shape(psi_datas[j][i])[0]
+            f_ij = jnp.dot((psi_datas[j][i]/psi_datas[i][i]).T, datas[j].positions)/device_batch_size
+            f_ji = jnp.dot((psi_datas[j][i]/psi_datas[i][i]).T, datas[i].positions)/device_batch_size
+            f.append(jnp.sum(jnp.abs(f_ij*f_ji)))
         aux_datas[i].S = jnp.array(S)
-        aux_datas[i].psi = [psi_datas[i][j]/psi_datas[j][j],psi_datas[j][i]/psi_datas[i][i]]
+        aux_datas[i].f = jnp.array(f)
 
     return E_mean, (clipping_states, psi_datas, aux_datas)
 

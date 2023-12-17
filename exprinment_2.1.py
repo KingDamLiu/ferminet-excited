@@ -85,11 +85,11 @@ periodic_table = ['H','He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg
                   'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'U', 'Np', 'Pu', 'Am', 'Cm', 'Bk', 'Cf', 'Es', 'Fm','Md', 'No', 'Lr',
                   'Rf', 'Db', 'Sg', 'Bh', 'Hs', 'Mt', 'Ds', 'Rg', 'Cn', 'Nh', 'Fl', 'Mc', 'Lv', 'Ts', 'Og', 'Uue']
 
-spins = [1,0,1,0,1,0,1,0,1,0,1,0,1,2,3,2,1,0,1,0,1,2,3,4,5,4,3,2,1]
+spins = [1,0,1,0,1,0,1,0,1,0,1,0,1,2,3,2,1,0,1,0,1,2,3,4,5,4,3,2,1,0,1,2,3,2,1,0,1,0,1,2,3,2,1]
 
-Num_psi = [12, 12 ,12, 12, 12]
+Num_psi = 12
 for ecp_flag in [True]:
-    for num_atom in range(25,26):
+    for num_atom in range(18, 27):
         if not ecp_flag:
             cfg.system.ecp = True
             # 全电子
@@ -156,7 +156,7 @@ for ecp_flag in [True]:
         init_params = [None]
 
         # Create parameters, network, and vmaped/pmaped derivations
-        for j in range(Num_psi[num_atom-22]):
+        for j in range(Num_psi):
             # 待求解波函数参数初始化文件
             ckpt_restore_filenames = []
             ckpt_save_paths = []
@@ -287,6 +287,7 @@ for ecp_flag in [True]:
                         V_loc = np.asarray(unused_aux_data.V_loc[0]),
                         V_nloc = np.asarray(unused_aux_data.V_nloc[0]),
                         S = np.asarray(unused_aux_data.S[0].sum()),
+                        f = np.asarray(unused_aux_data.f[0].sum()),
                         delta_time=np.asarray(delta_time),
                         grad_norm = params_state['grad_norm'][0],
                         learning_rate = params_state['learning_rate'][0],
@@ -297,6 +298,8 @@ for ecp_flag in [True]:
                         num_param = get_num_param().get_key(params[0]))
                     for si, s in zip(range(unused_aux_data.S[0].shape[0]), unused_aux_data.S[0]):
                         out_data['S_'+str(si)] = np.asarray(s)
+                    for fi, f in zip(range(unused_aux_data.f[0].shape[0]), unused_aux_data.f[0]):
+                        out_data['f_'+str(fi)] = np.asarray(f)
                     if t>0 and os.path.exists(train_stats_file_names[i]):
                         df = pd.DataFrame(out_data, index=[0])
                         df.to_csv(train_stats_file_names[i], mode='a', header=False)

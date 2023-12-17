@@ -1384,7 +1384,8 @@ def make_fermi_net(
     """
 
     orbitals = orbitals_apply(params, pos, spins, atoms, charges)
-    return network_blocks.logdet_matmul(orbitals)
+    sign, logabs = network_blocks.logdet_matmul(orbitals)
+    return sign, logabs, orbitals
 
   return Network(
       options=options, init=init, apply=apply, orbitals=orbitals_apply

@@ -16,6 +16,7 @@ optim:
 network:
   # network_type: ferminet
   bias_orbitals: false
+  jastrow: SIMPLE_EE
   complex: false
   determinants: 16
   full_det: false

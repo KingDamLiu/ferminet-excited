@@ -151,7 +151,7 @@ def make_loss(logabs_networks, signed_networks, sign_networks, charges, nspins, 
 
   evaluate_loss = qmc_loss_functions.make_loss(
       logabs_networks,
-      sign_networks,
+      signed_networks,
       local_energy,
       clipping_config,
       complex_output=cfg.network.complex,
@@ -292,27 +292,27 @@ def init_electrons(
     of spin configurations, where 1 and -1 indicate alpha and beta electrons
     respectively.
   """
-  # if sum(atom.charge for atom in molecule) != sum(electrons):
-  #   if len(molecule) == 1:
-  #     atomic_spin_configs = [electrons]
-  #   else:
-  #     raise NotImplementedError('No initialization policy yet '
-  #                               'exists for charged molecules.')
-  # else:
-  #   atomic_spin_configs = [
-  #       (atom.element.nalpha - int((atom.atomic_number - atom.charge) // 2),
-  #         atom.element.nbeta - int((atom.atomic_number - atom.charge) // 2))
-  #       for atom in molecule
-  #   ]
-  #   print(electrons, atomic_spin_configs)
-  #   assert sum(sum(x) for x in atomic_spin_configs) == sum(electrons)
-  #   while tuple(sum(x) for x in zip(*atomic_spin_configs)) != electrons:
-  #     i = np.random.randint(len(atomic_spin_configs))
-  #     nalpha, nbeta = atomic_spin_configs[i]
-  #     atomic_spin_configs[i] = nbeta, nalpha
-  #   print(atomic_spin_configs)
-  atomic_spin_configs = [electrons]
-
+  if sum(atom.charge for atom in molecule) != sum(electrons):
+    if len(molecule) == 1:
+      atomic_spin_configs = [electrons]
+    else:
+      raise NotImplementedError('No initialization policy yet '
+                                'exists for charged molecules.')
+  else:
+    atomic_spin_configs = [
+        (atom.element.nalpha - int((atom.atomic_number - atom.charge) // 2),
+          atom.element.nbeta - int((atom.atomic_number - atom.charge) // 2))
+        for atom in molecule
+    ]
+    print(electrons, atomic_spin_configs)
+    assert sum(sum(x) for x in atomic_spin_configs) == sum(electrons)
+    while tuple(sum(x) for x in zip(*atomic_spin_configs)) != electrons:
+      i = np.random.randint(len(atomic_spin_configs))
+      nalpha, nbeta = atomic_spin_configs[i]
+      atomic_spin_configs[i] = nbeta, nalpha
+    print(atomic_spin_configs)
+  # atomic_spin_configs = [electrons]
+  # print(atomic_spin_configs)
   # Assign each electron to an atom initially.
   electron_positions = []
   for i in range(2):
