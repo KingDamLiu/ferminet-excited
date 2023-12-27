@@ -88,46 +88,24 @@ periodic_table = ['H','He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg
 
 spins = [1,0,1,0,1,0,1,0,1,0,1,0,1,2,3,2,1,0,1,0,1,2,3,4,5,4,3,2,1,0,1,2,3,2,1,0,1,0,1,2,3,2,1]
 
-Num_psi = 3
+Num_psi = 2
 
 
 
-# 对乙烯进行建模
+postions = [[0.000000, 0.000000, 0],
+            [0.000000,  0, 1.34],
+            [0.000000,  0, 0],]
+r = [1,1.2,1.4,1.7,1.75,1.8,1.9,2.0,2.2,2.5]
+# r = [1.5,1.2,1.4,1.7,1.75,1.8,1.9,2.0,2.2,2.5]
+for twis in range(7, len(r)):
+    postions[2][2] = -r[twis]
 
-# 扭转角度
-postions = [[-0.675000, 0.000000, 0.000000],
-    [0.675000, 0.000000, 0.000000],
-    [-1.242900, 0.000000, -0.930370],
-    [-1.242900, 0.000000, 0.930370],
-    [1.242900, 0.000000, -0.930370],
-    [1.242900, 0.000000, 0.930370]]
-postions = np.array(postions)
-tau = np.array([0,15,30,45,60,70,80,85,90])/180*np.pi
-twist = np.array([0.930370*np.sin(tau),0.930370*np.cos(tau)]).T
-
-# # 锥化角度
-# postions = [(-0.688500, 0.000000, 0.000000),
-#     (0.688500, 0.000000, 0.000000),
-#     (-1.307207, 0.000000, -0.915547),
-#     (-1.307207, 0.000000, 0.915547),
-#     (1.307207, -0.915547, 0.000000),
-#     (1.307207, 0.915547, 0.000000)]
-
-# postions = np.array(postions)
-# phi = np.array([0,20,40,60,70,80,90,95,97.5,100,102.5,105,110,120])/180*np.pi
-# twist = np.array([postions[0,0] + (postions[2,0]-postions[0,0])*np.cos(phi),(postions[2,0]-postions[0,0])*np.sin(phi)]).T
-# postions[2,0:2] = twist[1]
-# postions[3,0:2] = twist[1]
-
-for twis in range(2, len(twist)):
-    postions[2,1:3] = -twist[twis]
-    postions[3,1:3] = twist[twis]
-
+    print(postions)
     mol = gto.Mole()
     mol.build(
-        atom=[['C', postions[0]], ['C', postions[1]], ['H', postions[2]], ['H', postions[3]], ['H', postions[4]], ['H', postions[5]]],
-        basis={'C': 'ccecpccpvdz', 'H': 'ccecpccpvdz'},
-        ecp={'C': 'ccecp', 'H': 'ccecp'},
+        atom=[['S', postions[0]], ['H', postions[1]], ['H', postions[2]]],
+        basis={'S': 'ccecpccpvtz', 'H': 'ccecpccpvtz'},
+        ecp={'S': 'ccecp', 'H': 'ccecp'},
         spin=0)
 
 
@@ -144,7 +122,7 @@ for twis in range(2, len(twist)):
     # elif cfg.system.molecule:
     #     cfg = molecule_to_system(cfg)
 
-    cfg.log.save_path = "data/expriment_2_1/C2H4_tau"+str(round(tau[twis]*180/np.pi))+file_name
+    cfg.log.save_path = "data/expriment_2_1/H2S_180"+str(twis)+file_name
     cfg.optim.n_epochs = 10000
     cfg.optim.num_psi_updates = 1
 
@@ -171,13 +149,10 @@ for twis in range(2, len(twist)):
         seed = int(multihost_utils.broadcast_one_to_all(seed)[0])
         key = jax.random.PRNGKey(seed)
 
+    init_params = [None]
+
     # Create parameters, network, and vmaped/pmaped derivations
     for psi_id in range(Num_psi):
-        init_path = "data/expriment_2_1/C2H4/C2H4_tau"+str(round(tau[twis]*180/np.pi))+file_name
-        ckpt = os.listdir(init_path)
-        ckpt.sort()
-        print(ckpt)
-        init_params = [init_path+"/"+ckpt[psi_id]+"/qmcjax_ckpt_004000.npz"]
 
         # 待求解波函数参数初始化文件
         ckpt_restore_filenames = []
