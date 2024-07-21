@@ -282,7 +282,7 @@ def make_loss(logabs_networks: networks.LogFermiNetLike,
       E_var = constants.pmean(jnp.nanmean(diff * jnp.conj(diff)))
       aux_data = AuxiliaryLossData(
           E_var=E_var.real,
-          E_loc=E_loc,
+          E_loc=[E_pot,E_kin,V_nloc],
           E_loc_clipped=E_loc_clipped,
           E_mean_clipped=E_mean_clipped,
           E_var_clipped=E_var_clipped,

@@ -20,6 +20,7 @@ import chex
 from ferminet import networks
 import jax
 from jax import lax
+import folx
 import jax.numpy as jnp
 import numpy as np
 from typing_extensions import Protocol
@@ -141,8 +142,81 @@ def local_kinetic_energy(
       result += 0.5 * jnp.sum(phase_primal ** 2)
       result -= 1.j * jnp.sum(primal * phase_primal)
     return result
+  
+  def _lapl_over_f_folx(params, data):
+    f_closure = lambda x: logabs_f(params,
+                                    x,
+                                    data.spins,
+                                    data.atoms,
+                                    data.charges)
+    f_wrapped = folx.forward_laplacian(f_closure, sparsity_threshold=6)
+    output = f_wrapped(data.positions)
+    return - (output.laplacian +
+              jnp.sum(output.jacobian.dense_array ** 2)) / 2
 
-  return _lapl_over_f
+  def _grad_over_f(params, data):
+    grad_f = jax.grad(logabs_f, argnums=1)
+    def grad_f_closure(x):
+      return grad_f(params, x, data.spins, data.atoms, data.charges)
+
+    primal, dgrad_f = jax.linearize(grad_f_closure, data.positions)
+
+    result = 0.5 * jnp.sum(primal ** 2)
+    return result
+
+  def _lapl_over_f_optimized(params, data):
+      n = data.positions.shape[0]
+      eye = jnp.eye(n)
+      
+      # 封装 logabs_f 以包含所有参数
+      def logabs_f_closure(x):
+          return logabs_f(params, x, data.spins, data.atoms, data.charges)
+      
+      # 封装 phase_f 以包含所有参数，如果有复数输出
+      if complex_output:
+          def phase_f_closure(x):
+              return phase_f(params, x, data.spins, data.atoms, data.charges)
+
+      # 定义一个函数来计算每个对角元素
+      def hessian_diagonal_element(x, idx):
+          _, vector_jacobian_prod = jax.jvp(logabs_f_closure, (x,), (eye[idx],))
+          return vector_jacobian_prod[idx]
+
+      # 对所有维度并行化对角 Hessian 的计算
+      diagonal_elements = jax.vmap(hessian_diagonal_element, in_axes=(None, 0))(data.positions, jnp.arange(n))
+
+      # 如果处理复数输出
+      if complex_output:
+          def hessian_diagonal_element_phase(x, idx):
+              _, vector_jacobian_prod = jax.jvp(phase_f_closure, (x,), (eye[idx],))
+              return vector_jacobian_prod[idx]
+          
+          phase_diagonal_elements = jax.vmap(hessian_diagonal_element_phase, in_axes=(None, 0))(data.positions, jnp.arange(n))
+          diagonal_elements = diagonal_elements + 1.j * phase_diagonal_elements
+
+      # 计算最终结果
+      result = -0.5 * jnp.sum(diagonal_elements)
+      primal = logabs_f_closure(data.positions)
+      result -= 0.5 * jnp.sum(primal ** 2)
+
+      if complex_output:
+          phase_primal = phase_f_closure(data.positions)
+          result += 0.5 * jnp.sum(phase_primal ** 2)
+          result -= 1.j * jnp.sum(primal * phase_primal)
+
+      return result
+  
+  def _lapl_over_f_c(params, data):
+      def psi(x):
+          return jnp.exp(logabs_f(params, x, data.spins, data.atoms, data.charges))*phase_f(params, x, data.spins, data.atoms, data.charges)
+      input_size = data.positions.shape[-1]
+      h = jnp.eye(input_size)*1e-4
+      print(data.positions.shape)
+      result = 0
+      for i in range(20):
+        result += psi(data.positions+h[i:i+1,:])+ psi(data.positions-h[i:i+1,:])
+      return -(result-2*input_size*psi(data.positions))/1e-8/2
+  return _lapl_over_f_folx
 
 
 def potential_electron_electron(r_ee: Array) -> jnp.ndarray:
